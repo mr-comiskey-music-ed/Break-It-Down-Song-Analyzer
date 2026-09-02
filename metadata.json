@@ -1,0 +1,6 @@
+{
+  "name": "Break-It-Down Song Analyzer",
+  "description": "Interactive song form and structure analysis app with YouTube video synchronization, tap tempo, drag-and-drop timeline annotation, dynamic bar calculations, instrumentation sliders, and evaluation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
