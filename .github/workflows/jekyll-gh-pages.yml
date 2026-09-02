@@ -21,9 +21,6 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-env:
-  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
 jobs:
   # Build job
   build:
