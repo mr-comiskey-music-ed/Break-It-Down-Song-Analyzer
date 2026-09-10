@@ -104,8 +104,8 @@ export const PRESET_SONGS: PresetSong[] = [
     genre: 'Soul / R&B / Pop',
     referenceBpm: 96,
     timeSignature: '4/4',
-    youtubeId: 'rjQ3WWxf9bE',
-    youtubeUrl: 'https://www.youtube.com/watch?v=rjQ3WWxf9bE',
+    youtubeId: 'fL0TN2D_d5c',
+    youtubeUrl: 'https://www.youtube.com/watch?v=fL0TN2D_d5c',
     description: 'Soulful 96 BPM acoustic soul hit with classic verse-chorus-bridge structure.',
     prepopulatedSections: [
       {
