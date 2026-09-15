@@ -2,7 +2,7 @@ name: Build Single File Bundle
 
 on:
   push:
-    branches: ["single-file-build"]
+    branches: ["main", "single-file-build"]
   workflow_dispatch:
 
 jobs:
