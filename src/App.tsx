@@ -1076,6 +1076,17 @@ export default function App() {
         onStudentNameChange={setStudentName}
         tapTempoUsed={tapTempoUsed}
         onImportComparison={setComparedSong}
+        onLoadIntoMainWorkspace={(imported) => {
+          setSongMetadata(imported.songMetadata);
+          setSections(imported.sections);
+          if (imported.studentName) {
+            setStudentName(imported.studentName);
+          }
+          if (imported.songMetadata.videoDuration) {
+            setDuration(imported.songMetadata.videoDuration);
+          }
+          showToast(`Loaded full workspace analysis for ${imported.studentName || 'Student'}`);
+        }}
       />
     </div>
   );
