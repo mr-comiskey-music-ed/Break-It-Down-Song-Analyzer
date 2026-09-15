@@ -28,6 +28,30 @@ export function decodeShareState(encoded: string): ShareState | null {
   }
 }
 
+export function cC(str: string): ShareState | null {
+  if (!str) return null;
+  let trimmed = str.trim();
+  if (trimmed.includes('assignment=')) {
+    const parts = trimmed.split('assignment=');
+    trimmed = parts[parts.length - 1];
+  }
+  try {
+    const decoded = decodeShareState(trimmed);
+    if (decoded && decoded.songMetadata && Array.isArray(decoded.sections)) {
+      return decoded;
+    }
+    const raw = decodeURIComponent(trimmed);
+    const json = decodeURIComponent(escape(atob(raw)));
+    const parsed = JSON.parse(json) as ShareState;
+    if (parsed && parsed.songMetadata && Array.isArray(parsed.sections)) {
+      return parsed;
+    }
+  } catch (err) {
+    console.error('Failed to verify submission code via cC():', err);
+  }
+  return null;
+}
+
 export function extractYouTubeId(urlOrId: string): string {
   if (!urlOrId) return '';
   const trimmed = urlOrId.trim();

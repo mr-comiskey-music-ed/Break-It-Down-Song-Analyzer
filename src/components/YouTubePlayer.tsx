@@ -289,10 +289,33 @@ export function YouTubePlayer({
         className="relative aspect-video w-full max-w-lg mx-auto bg-slate-950 rounded-xl overflow-hidden shadow-inner border border-slate-800 group"
       >
         {youtubeId ? (
-          <div 
-            id="yt-player-frame" 
-            className="w-full h-full" 
-          />
+          <>
+            <div 
+              id="yt-player-frame" 
+              className={`w-full h-full transition-all duration-300 ${!isExampleSong && !overlayDismissed ? 'filter backdrop-blur-[2px] contrast-95' : ''}`} 
+            />
+            
+            {/* Blur & Attention Overlay with pointer pointing up-left to Paste Link & Load Video */}
+            {!isExampleSong && !overlayDismissed && (
+              <div 
+                className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1.5px] p-4 transition-all duration-300 flex items-center justify-center cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOverlayDismissed(true);
+                  if (playerInstanceRef.current && typeof playerInstanceRef.current.playVideo === 'function') {
+                    playerInstanceRef.current.playVideo();
+                  }
+                }}
+              >
+                <div className="absolute top-4 left-4 flex flex-col items-start animate-bounce">
+                  <div className="bg-indigo-600 text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-2 border border-indigo-400/50">
+                    <ArrowUp className="w-4 h-4 text-indigo-200" />
+                    <span>Start Here</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full p-6 text-center text-slate-400 relative">
             <Youtube className="w-12 h-12 text-slate-600 mb-2 animate-pulse" />
