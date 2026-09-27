@@ -796,6 +796,7 @@ export default function App() {
   // Play from section start time
   const handlePlaySection = (section: SongSection) => {
     setSelectedSectionId(section.id);
+    setCurrentTime(section.startTime);
     playerRefHandle.current?.seekTo(section.startTime, true);
   };
 

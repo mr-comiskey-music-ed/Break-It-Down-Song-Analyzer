@@ -89,9 +89,6 @@ export function YouTubePlayer({
       }
     }
 
-    // Clear previous interval
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
     try {
       if (playerInstanceRef.current && typeof playerInstanceRef.current.destroy === 'function') {
         playerInstanceRef.current.destroy();
@@ -102,6 +99,7 @@ export function YouTubePlayer({
 
     try {
       playerInstanceRef.current = new (window as any).YT.Player('yt-player-frame', {
+        host: 'https://www.youtube-nocookie.com',
         videoId: youtubeId,
         playerVars: {
           autoplay: 0,
@@ -110,10 +108,17 @@ export function YouTubePlayer({
           rel: 0,
           enablejsapi: 1,
           origin: window.location.origin,
+          widget_referrer: window.location.href,
           wmode: 'transparent',
         },
         events: {
           onReady: (event: any) => {
+            try {
+              const iframe = event.target?.getIframe?.();
+              if (iframe) {
+                iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+              }
+            } catch {}
             const dur = event.target.getDuration();
             if (dur && dur > 0) {
               onDurationChange(dur);
@@ -133,8 +138,12 @@ export function YouTubePlayer({
     } catch (e) {
       console.warn('YT Player initialization fallback:', e);
     }
+  }, [apiReady, youtubeId]);
 
-    // Polling current time
+  // Polling current time continuously during playback
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
     intervalRef.current = setInterval(() => {
       if (playerInstanceRef.current && typeof playerInstanceRef.current.getCurrentTime === 'function') {
         try {
@@ -150,24 +159,23 @@ export function YouTubePlayer({
           // ignore
         }
       }
-    }, 250);
+    }, 100);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [apiReady, youtubeId]);
+  }, [onTimeUpdate, onDurationChange, duration]);
 
   // Expose player controller to parent
   useEffect(() => {
     playerRefHandle.current = {
       seekTo: (seconds: number, play = true) => {
+        onTimeUpdate(seconds);
         if (playerInstanceRef.current && typeof playerInstanceRef.current.seekTo === 'function') {
           playerInstanceRef.current.seekTo(seconds, true);
           if (play && typeof playerInstanceRef.current.playVideo === 'function') {
             playerInstanceRef.current.playVideo();
           }
-        } else {
-          onTimeUpdate(seconds);
         }
       },
       togglePlay: () => {
