@@ -207,7 +207,7 @@ export function SectionTypeModal({
                         {opt.label}
                       </span>
                       <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">
-                        {opt.type === 'chorus' ? 'HOOK' : opt.type.replace('_', ' ')}
+                        {opt.type === 'chorus' ? 'HOOK' : opt.type === 'down_chorus' ? 'POST CHORUS' : opt.type.replace('_', ' ')}
                       </span>
                     </div>
                     <p className="text-xs opacity-85 line-clamp-2 leading-relaxed">

@@ -190,36 +190,10 @@ export function Header({
             title="Open step-by-step tutorial with Musicology"
           >
             <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Tutorial Walkthrough</span>
-            <span className="sm:hidden">Tutorial</span>
+            <span>Tutorial</span>
           </button>
 
-          {/* Start / Stop Button (Mobile & Tablet screens) */}
-          {onTogglePlay && (
-            <button
-              id="header-mobile-start-stop-btn"
-              type="button"
-              onClick={onTogglePlay}
-              className={`inline-flex lg:hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-98 ${
-                isPlaying
-                  ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }`}
-              title={isPlaying ? 'Stop playback (Spacebar)' : 'Start playback (Spacebar)'}
-            >
-              {isPlaying ? (
-                <>
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>Stop</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start</span>
-                </>
-              )}
-            </button>
-          )}
+
 
           {/* New Song Analysis button */}
           {!isSharedView && (
@@ -231,7 +205,8 @@ export function Header({
               title="Clear current entries and start analyzing a new song"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-              <span>New Song Analysis</span>
+              <span className="hidden sm:inline">New Song Analysis</span>
+              <span className="sm:hidden">New Song</span>
             </button>
           )}
 

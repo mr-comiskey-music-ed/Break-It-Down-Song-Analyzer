@@ -258,16 +258,144 @@ export function TimelineVisualizer({
     setDraggingBoundaryIndex(null);
   }, []);
 
+  const handleSeekBarTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!e.touches || e.touches.length === 0) return;
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const seekTime = calculateTimeFromX(touch.clientX);
+    if (onSeek) {
+      onSeek(seekTime);
+    }
+    setDraggingType('playhead');
+    const clickedSec = sections.find((s) => seekTime >= s.startTime && seekTime < s.endTime);
+    if (clickedSec) {
+      onSelectSectionForDetails(clickedSec.id);
+    }
+  };
+
+  const handlePlayheadTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingType('playhead');
+  };
+
+  const handleBoundaryTouchStart = (index: number, e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingBoundaryIndex(index);
+    setDraggingType('boundary');
+  };
+
+  const handleFirstSectionStartTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingType('firstSectionStart');
+  };
+
+  const handleLastSectionEndTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingType('lastSectionEnd');
+  };
+
+  const handleSongStartTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingType('songStart');
+  };
+
+  const handleSongEndTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setDraggingType('songEnd');
+  };
+
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!draggingType || !e.touches || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      const clientX = touch.clientX;
+
+      if (draggingType === 'playhead') {
+        const newSeekTime = calculateTimeFromX(clientX);
+        if (onSeek) {
+          onSeek(newSeekTime);
+        }
+        return;
+      }
+
+      if (!timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const mouseX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+      const rawTime = (mouseX / rect.width) * totalTimelineDuration;
+      const newTime = Math.round(rawTime * 2) / 2;
+
+      if (draggingType === 'boundary' && draggingBoundaryIndex !== null) {
+        const prevSection = sections[draggingBoundaryIndex];
+        const nextSection = sections[draggingBoundaryIndex + 1];
+
+        if (prevSection && nextSection) {
+          const minTime = prevSection.startTime + 1;
+          const maxTime = nextSection.endTime - 1;
+          const clampedTime = Math.max(minTime, Math.min(maxTime, newTime));
+          onUpdateBoundary(draggingBoundaryIndex, clampedTime);
+        }
+      } else if (draggingType === 'firstSectionStart' && onUpdateFirstSectionStart && sections.length > 0) {
+        const firstSection = sections[0];
+        const minTime = 0;
+        const maxTime = Math.max(0, firstSection.endTime - 0.5);
+        const clampedTime = Math.max(minTime, Math.min(maxTime, newTime));
+        onUpdateFirstSectionStart(clampedTime);
+      } else if (draggingType === 'lastSectionEnd' && onUpdateLastSectionEnd && sections.length > 0) {
+        const lastSection = sections[sections.length - 1];
+        const minTime = lastSection.startTime + 0.5;
+        const targetDuration = duration > 0 ? duration : totalTimelineDuration;
+        const maxTime = targetDuration;
+        const clampedTime = Math.max(minTime, Math.min(maxTime, newTime));
+        onUpdateLastSectionEnd(clampedTime);
+      } else if (draggingType === 'songStart' && onUpdateSongStart) {
+        const minTime = 0;
+        const maxTime = Math.max(0, effectiveSongEnd - 5);
+        const clamped = Math.max(minTime, Math.min(maxTime, newTime));
+        onUpdateSongStart(clamped);
+      } else if (draggingType === 'songEnd' && onUpdateSongEnd) {
+        const minTime = effectiveSongStart + 5;
+        const maxTime = totalTimelineDuration;
+        const clamped = Math.max(minTime, Math.min(maxTime, newTime));
+        onUpdateSongEnd(clamped);
+      }
+    },
+    [
+      draggingType,
+      draggingBoundaryIndex,
+      sections,
+      totalTimelineDuration,
+      effectiveSongStart,
+      effectiveSongEnd,
+      duration,
+      calculateTimeFromX,
+      onSeek,
+      onUpdateBoundary,
+      onUpdateFirstSectionStart,
+      onUpdateLastSectionEnd,
+      onUpdateSongStart,
+      onUpdateSongEnd,
+    ]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setDraggingType(null);
+    setDraggingBoundaryIndex(null);
+  }, []);
+
   useEffect(() => {
     if (draggingType !== null) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd);
       return () => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [draggingType, handleMouseMove, handleMouseUp]);
+  }, [draggingType, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   // Click on ruler to jump video playback
   const handleRulerClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -721,6 +849,7 @@ export function TimelineVisualizer({
             ref={seekbarRef}
             id="timeline-yellow-seek-bar"
             onMouseDown={handleSeekBarMouseDown}
+            onTouchStart={handleSeekBarTouchStart}
             onMouseMove={handleSeekBarMouseMove}
             onMouseEnter={() => setIsHoveringSeekBar(true)}
             onMouseLeave={() => {
@@ -761,6 +890,7 @@ export function TimelineVisualizer({
                 id="timeline-top-playhead-handle"
                 style={{ left: `${playheadPct}%` }}
                 onMouseDown={handlePlayheadMouseDown}
+                onTouchStart={handlePlayheadTouchStart}
                 onMouseEnter={() => setIsHoveringPlayhead(true)}
                 onMouseLeave={() => setIsHoveringPlayhead(false)}
                 className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4.5 h-4.5 rounded-full bg-amber-500 shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing transition-transform z-30 border border-amber-600/70 ${
@@ -961,6 +1091,7 @@ export function TimelineVisualizer({
                 onMouseEnter={() => setHoveredBoundaryEdge('firstSectionStart')}
                 onMouseLeave={() => setHoveredBoundaryEdge(null)}
                 onMouseDown={handleFirstSectionStartMouseDown}
+                onTouchStart={handleFirstSectionStartTouchStart}
                 onClick={(e) => e.stopPropagation()}
                 className="absolute top-0 bottom-0 w-6 -ml-3 z-25 flex flex-col items-center justify-center cursor-ew-resize group"
               >
@@ -976,6 +1107,7 @@ export function TimelineVisualizer({
                 {/* Draggable center handle pill with start indicator */}
                 <div
                   onMouseDown={handleFirstSectionStartMouseDown}
+                  onTouchStart={handleFirstSectionStartTouchStart}
                   className={`absolute top-1/2 -translate-y-1/2 w-4.5 h-9 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-md border-2 border-white dark:border-slate-800 transition-all ${
                     isDraggingThis || isHoveredThis
                       ? 'bg-emerald-500 text-white scale-110 ring-2 ring-emerald-400/40'
@@ -1013,6 +1145,7 @@ export function TimelineVisualizer({
                 onMouseEnter={() => setHoveredBoundaryIndex(idx)}
                 onMouseLeave={() => setHoveredBoundaryIndex(null)}
                 onMouseDown={(e) => handleBoundaryMouseDown(idx, e)}
+                onTouchStart={(e) => handleBoundaryTouchStart(idx, e)}
                 onClick={(e) => e.stopPropagation()}
                 className="absolute top-0 bottom-0 w-6 -ml-3 z-20 flex flex-col items-center justify-center cursor-ew-resize group"
               >
@@ -1037,6 +1170,7 @@ export function TimelineVisualizer({
                 {/* Draggable center handle pill */}
                 <div
                   onMouseDown={(e) => handleBoundaryMouseDown(idx, e)}
+                  onTouchStart={(e) => handleBoundaryTouchStart(idx, e)}
                   className={`absolute top-1/2 -translate-y-1/2 w-4 h-8 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-md border border-white dark:border-slate-800 transition-all ${
                     isDraggingThis || isHoveredThis
                       ? 'bg-rose-600 text-white scale-110'
@@ -1073,6 +1207,7 @@ export function TimelineVisualizer({
                 onMouseEnter={() => setHoveredBoundaryEdge('lastSectionEnd')}
                 onMouseLeave={() => setHoveredBoundaryEdge(null)}
                 onMouseDown={handleLastSectionEndMouseDown}
+                onTouchStart={handleLastSectionEndTouchStart}
                 onClick={(e) => e.stopPropagation()}
                 className="absolute top-0 bottom-0 w-6 -ml-3 z-25 flex flex-col items-center justify-center cursor-ew-resize group"
               >
@@ -1088,6 +1223,7 @@ export function TimelineVisualizer({
                 {/* Draggable center handle pill with end indicator */}
                 <div
                   onMouseDown={handleLastSectionEndMouseDown}
+                  onTouchStart={handleLastSectionEndTouchStart}
                   className={`absolute top-1/2 -translate-y-1/2 w-4.5 h-9 rounded-full flex flex-col items-center justify-center gap-0.5 shadow-md border-2 border-white dark:border-slate-800 transition-all ${
                     isDraggingThis || isHoveredThis
                       ? 'bg-purple-500 text-white scale-110 ring-2 ring-purple-400/40'
@@ -1129,6 +1265,7 @@ export function TimelineVisualizer({
               {/* Start Handle Top Flag */}
               <div
                 onMouseDown={handleSongStartMouseDown}
+                onTouchStart={handleSongStartTouchStart}
                 className={`absolute -top-1 w-5 h-6 rounded-b-md bg-emerald-600 text-white flex items-center justify-center shadow-md border border-white dark:border-slate-800 transition-all ${
                   draggingType === 'songStart' || hoveredSpecialHandle === 'start'
                     ? 'scale-115 bg-emerald-500'
@@ -1169,6 +1306,7 @@ export function TimelineVisualizer({
               {/* End Handle Top Flag */}
               <div
                 onMouseDown={handleSongEndMouseDown}
+                onTouchStart={handleSongEndTouchStart}
                 className={`absolute -top-1 w-5 h-6 rounded-b-md bg-rose-600 text-white flex items-center justify-center shadow-md border border-white dark:border-slate-800 transition-all ${
                   draggingType === 'songEnd' || hoveredSpecialHandle === 'end'
                     ? 'scale-115 bg-rose-500'
@@ -1194,6 +1332,7 @@ export function TimelineVisualizer({
               id="timeline-playhead-scrubber"
               style={{ left: `${playheadPct}%` }}
               onMouseDown={handlePlayheadMouseDown}
+              onTouchStart={handlePlayheadTouchStart}
               onMouseEnter={() => setIsHoveringPlayhead(true)}
               onMouseLeave={() => setIsHoveringPlayhead(false)}
               className="absolute top-0 bottom-0 w-4 -ml-2 z-35 flex flex-col items-center justify-start cursor-grab active:cursor-grabbing group/laser pointer-events-auto"
