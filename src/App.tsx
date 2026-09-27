@@ -47,10 +47,10 @@ const DEFAULT_METADATA: SongMetadata = {
   genre: '',
   timeSignature: '4/4',
   bpm: '',
-  referenceBpm: 96,
-  youtubeUrl: 'https://www.youtube.com/watch?v=qdmWbJ8ISP4',
-  youtubeId: 'qdmWbJ8ISP4',
-  videoDuration: 238,
+  referenceBpm: 120,
+  youtubeUrl: '',
+  youtubeId: 'GlPlfCy1urI',
+  videoDuration: 0,
 };
 
 export default function App() {
@@ -160,7 +160,7 @@ export default function App() {
 
   // Player state
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(238);
+  const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Modals & UI state
@@ -175,7 +175,7 @@ export default function App() {
   const [isLoadingAutoFill, setIsLoadingAutoFill] = useState(false);
   const [isSharedView, setIsSharedView] = useState(false);
   const [hasCustomDemo, setHasCustomDemo] = useState(hasCustomSavedDemo());
-  const [activeDemoSlot, setActiveDemoSlot] = useState<number | null>(1);
+  const [activeDemoSlot, setActiveDemoSlot] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isTutorialOpen) return;
@@ -267,10 +267,9 @@ export default function App() {
       }
     }
 
-    // If not a shared view, show the tutorial modal and load Demo 1 on first load
+    // If not a shared view, show the tutorial modal on first visit without replacing the alternate video
     const visited = localStorage.getItem('song_form_guide_seen');
     if (!visited) {
-      handleLoadExampleSong(true, 1);
       setTutorialStep(0);
       setIsTutorialOpen(true);
       localStorage.setItem('song_form_guide_seen', 'true');
