@@ -19,11 +19,25 @@ import { SongSpiderChart } from './components/SongSpiderChart';
 import { SectionDetailsList } from './components/SectionDetailsList';
 import { SectionTypeModal } from './components/SectionTypeModal';
 import { AddSectionChoiceModal } from './components/AddSectionChoiceModal';
-import { InitialGuidePopup } from './components/InitialGuidePopup';
+
 import { TutorialModal } from './components/TutorialModal';
 import { ShareEvaluationModal } from './components/ShareEvaluationModal';
 import { SongComparisonView } from './components/SongComparisonView';
 import { CheckCircle2, Youtube } from 'lucide-react';
+
+const BLANK_METADATA: SongMetadata = {
+  title: '',
+  artist: '',
+  album: '',
+  year: '',
+  genre: '',
+  timeSignature: '4/4',
+  bpm: '',
+  referenceBpm: 120,
+  youtubeUrl: '',
+  youtubeId: 'GlPlfCy1urI',
+  videoDuration: 0,
+};
 
 const DEFAULT_METADATA: SongMetadata = {
   title: '',
@@ -46,6 +60,7 @@ export default function App() {
   const [studentName, setStudentName] = useState('');
   const [tapTempoUsed, setTapTempoUsed] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [newSongResetKey, setNewSongResetKey] = useState(0);
   const [comparedSong, setComparedSong] = useState<{
     songMetadata: SongMetadata;
     sections: SongSection[];
@@ -252,10 +267,12 @@ export default function App() {
       }
     }
 
-    // If not a shared view, show the first-time guide popup
+    // If not a shared view, show the tutorial modal and load Demo 1 on first load
     const visited = localStorage.getItem('song_form_guide_seen');
     if (!visited) {
-      setIsInitialGuideOpen(true);
+      handleLoadExampleSong(true, 1);
+      setTutorialStep(0);
+      setIsTutorialOpen(true);
       localStorage.setItem('song_form_guide_seen', 'true');
     }
   }, []);
@@ -803,30 +820,29 @@ export default function App() {
   };
 
   // Reset to blank project / New Song Analysis
-  const handleResetProject = () => {
-    if (!window.confirm('Are you sure you want to clear your current entries and start analyzing a new song?')) {
-      return;
-    }
+  const handleNewSongAnalysis = () => {
     recordSnapshot();
     setActiveDemoSlot(null);
-    setSongMetadata({
-      ...DEFAULT_METADATA,
-      title: '',
-      artist: '',
-      album: '',
-      year: '',
-      genre: '',
-      bpm: '',
-      youtubeUrl: '',
-      youtubeId: '',
-      videoDuration: 0,
-    });
+    setSongMetadata(BLANK_METADATA);
     setSections([]);
     addSectionClickCountRef.current = 0;
     setSelectedSectionId(null);
     setTapTempoUsed(false);
     setIsSharedView(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+    setNewSongResetKey((prev) => prev + 1);
     window.location.hash = '';
+    showToast('Started New Song Analysis');
+  };
+
+  // Reset to blank project / New Song Analysis with confirmation
+  const handleResetProject = () => {
+    if (!window.confirm('Clear current entries and start a new song analysis?')) {
+      return;
+    }
+    handleNewSongAnalysis();
   };
 
   const handleTogglePlay = () => {
@@ -926,6 +942,7 @@ export default function App() {
                       isHighlighted={false}
                       isExampleSong={activeDemoSlot !== null}
                       standalone={false}
+                      resetKey={newSongResetKey}
                     />
                   </div>
                 </div>
@@ -1006,21 +1023,6 @@ export default function App() {
       </main>
 
       {/* Modals & Guides */}
-      <InitialGuidePopup
-        isOpen={isInitialGuideOpen}
-        onClose={() => setIsInitialGuideOpen(false)}
-        onStartTutorial={() => {
-          handleLoadExampleSong(true);
-          setTutorialStep(0);
-          setIsTutorialOpen(true);
-        }}
-        onQuickAddIntro={() => {
-          if (sections.length === 0) {
-            addSectionWithType('intro', 'Intro', 0);
-          }
-        }}
-      />
-
       <SectionTypeModal
         isOpen={isSectionTypeModalOpen}
         onClose={() => setIsSectionTypeModalOpen(false)}
@@ -1060,6 +1062,12 @@ export default function App() {
           setIsTutorialOpen(false);
           setTutorialStep(0);
         }}
+        onSkip={() => {
+          setIsTutorialOpen(false);
+          setTutorialStep(0);
+          handleNewSongAnalysis();
+        }}
+        onNewSong={handleNewSongAnalysis}
         onLoadExampleSong={handleLoadExampleSong}
         currentSongTitle={songMetadata.title}
         hasSections={sections.length > 0}
