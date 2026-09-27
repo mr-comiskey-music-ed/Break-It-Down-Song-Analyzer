@@ -13,15 +13,112 @@ export interface SavedDemoData {
   savedAt: number;
 }
 
+// Build Demo 1 from PRESET_SONGS[0] ("Put Your Records On")
+const preset1 = PRESET_SONGS[0];
+const EMBEDDED_DEMO_1: SavedDemoData = {
+  name: `${preset1.title} - ${preset1.artist}`,
+  songMetadata: {
+    title: preset1.title,
+    artist: preset1.artist,
+    album: preset1.album,
+    year: preset1.year,
+    genre: preset1.genre,
+    timeSignature: preset1.timeSignature,
+    bpm: preset1.referenceBpm,
+    referenceBpm: preset1.referenceBpm,
+    youtubeUrl: preset1.youtubeUrl,
+    youtubeId: preset1.youtubeId,
+    videoDuration: 238,
+  },
+  sections: (preset1.prepopulatedSections || []).map((s, idx) => {
+    const startTime = s.startTime || 0;
+    const endTime = s.endTime || 14;
+    const type = (s.type as SectionType) || 'verse';
+    const calc = calculateSectionBars(
+      endTime - startTime,
+      preset1.referenceBpm,
+      preset1.timeSignature,
+      type,
+      preset1.referenceBpm
+    );
+    return {
+      id: s.id || `demo-1-sec-${idx}`,
+      type,
+      label: s.label || `Section ${idx + 1}`,
+      startTime,
+      endTime,
+      calculatedBars: s.calculatedBars || calc.bars,
+      barExplanation: s.barExplanation || calc.explanation,
+      energyLevel: s.energyLevel || 6,
+      rhythmicDrive: s.rhythmicDrive || 6,
+      vocalComplexity: s.vocalComplexity || 6,
+      hasVocals: s.hasVocals !== false,
+      textureDensity: s.textureDensity || 5,
+      instrumentationNotes: s.instrumentationNotes || '',
+      color: SECTION_CONFIGS[type]?.colorName || 'indigo',
+    };
+  }),
+  studentName: 'Student',
+  savedAt: 1718000000000,
+};
+
+// Build Demo 2 from PRESET_SONGS[1] ("Musicology")
+const preset2 = PRESET_SONGS[1];
+const EMBEDDED_DEMO_2: SavedDemoData = {
+  name: `${preset2.title} - ${preset2.artist}`,
+  songMetadata: {
+    title: preset2.title,
+    artist: preset2.artist,
+    album: preset2.album,
+    year: preset2.year,
+    genre: preset2.genre,
+    timeSignature: preset2.timeSignature,
+    bpm: preset2.referenceBpm,
+    referenceBpm: preset2.referenceBpm,
+    youtubeUrl: preset2.youtubeUrl,
+    youtubeId: preset2.youtubeId,
+    videoDuration: 238,
+  },
+  sections: (preset2.prepopulatedSections || []).map((s, idx) => {
+    const startTime = s.startTime || 0;
+    const endTime = s.endTime || 12;
+    const type = (s.type as SectionType) || 'verse';
+    const calc = calculateSectionBars(
+      endTime - startTime,
+      preset2.referenceBpm,
+      preset2.timeSignature,
+      type,
+      preset2.referenceBpm
+    );
+    return {
+      id: s.id || `demo-2-sec-${idx}`,
+      type,
+      label: s.label || `Section ${idx + 1}`,
+      startTime,
+      endTime,
+      calculatedBars: s.calculatedBars || calc.bars,
+      barExplanation: s.barExplanation || calc.explanation,
+      energyLevel: s.energyLevel || 7,
+      rhythmicDrive: s.rhythmicDrive || 8,
+      vocalComplexity: s.vocalComplexity || 6,
+      hasVocals: s.hasVocals !== false,
+      textureDensity: s.textureDensity || 6,
+      instrumentationNotes: s.instrumentationNotes || '',
+      color: SECTION_CONFIGS[type]?.colorName || 'indigo',
+    };
+  }),
+  studentName: 'Student',
+  savedAt: 1718000000000,
+};
+
 /**
- * Checks if custom demo 1 or 2 has been saved
+ * Checks if custom demo 1 or 2 has been saved or available
  */
 export function hasCustomSavedDemo(slot: number = 1): boolean {
   try {
-    const key = slot === 2 ? DEMO_2_STORAGE_KEY : DEMO_1_STORAGE_KEY;
-    return !!localStorage.getItem(key);
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -56,58 +153,15 @@ export function getDemoExampleBySlot(slot: number = 1): {
     console.error(`Error loading custom demo ${slot} from storage:`, err);
   }
 
-  // Fallback to built-in preset (slot 1 -> index 0 "Musicology", slot 2 -> index 1 "Hey Ya!")
-  const presetIndex = slot === 2 ? 1 : 0;
-  const preset = PRESET_SONGS[presetIndex] || PRESET_SONGS[0];
-  const metadata: SongMetadata = {
-    title: preset.title,
-    artist: preset.artist,
-    album: preset.album,
-    year: preset.year,
-    genre: preset.genre,
-    timeSignature: preset.timeSignature,
-    bpm: preset.referenceBpm,
-    referenceBpm: preset.referenceBpm,
-    youtubeUrl: preset.youtubeUrl,
-    youtubeId: preset.youtubeId,
-    videoDuration: presetIndex === 1 ? 215 : 238,
-  };
-
-  const sections: SongSection[] = (preset.prepopulatedSections || []).map((s, idx) => {
-    const startTime = s.startTime || 0;
-    const endTime = s.endTime || 14;
-    const type = (s.type as SectionType) || 'verse';
-    const calc = calculateSectionBars(
-      endTime - startTime,
-      preset.referenceBpm,
-      preset.timeSignature,
-      type,
-      preset.referenceBpm
-    );
-
-    return {
-      id: s.id || `demo-${slot}-sec-${idx}`,
-      type,
-      label: s.label || `Section ${idx + 1}`,
-      startTime,
-      endTime,
-      calculatedBars: s.calculatedBars || calc.bars,
-      barExplanation: s.barExplanation || calc.explanation,
-      energyLevel: s.energyLevel || 6,
-      rhythmicDrive: s.rhythmicDrive || 6,
-      vocalComplexity: s.vocalComplexity || 6,
-      hasVocals: s.hasVocals !== false,
-      textureDensity: s.textureDensity || 5,
-      instrumentationNotes: s.instrumentationNotes || '',
-      color: SECTION_CONFIGS[type]?.colorName || 'indigo',
-    };
-  });
-
+  // Fallback to embedded demo 1 ("Put Your Records On") or demo 2 ("Musicology")
+  const embedded = slot === 2 ? EMBEDDED_DEMO_2 : EMBEDDED_DEMO_1;
   return {
-    isCustom: false,
-    name: preset.title,
-    songMetadata: metadata,
-    sections,
+    isCustom: true,
+    name: embedded.name,
+    songMetadata: embedded.songMetadata,
+    sections: embedded.sections,
+    studentName: embedded.studentName,
+    savedAt: embedded.savedAt,
   };
 }
 

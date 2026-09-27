@@ -818,27 +818,16 @@ export function TimelineVisualizer({
             </div>
           )}
 
-          {/* Shaded Area for Video Outro Credits (After Song End) */}
+          {/* Shaded Area for Post-Song Duration (After Song End) */}
           {hasOutroTrim && (
             <div
               style={{
                 left: `${(effectiveSongEnd / totalTimelineDuration) * 100}%`,
                 right: 0,
               }}
-              className="absolute top-0 bottom-0 bg-slate-400/20 dark:bg-slate-800/40 backdrop-blur-xs border-l-2 border-dashed border-rose-500/70 z-10 flex items-center justify-center pointer-events-none overflow-hidden"
-              title={`Video Outro / End Credits (${formatTimecode(effectiveSongEnd)} - ${formatTimecode(totalTimelineDuration)})`}
-            >
-              <div 
-                style={{
-                  transform: isBoundaryZoomed ? 'rotate(6deg) scaleX(0.6667)' : 'rotate(6deg)',
-                  transformOrigin: 'center center',
-                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded shadow-2xs whitespace-nowrap"
-              >
-                Video Outro ({formatTimecode(effectiveSongEnd)})
-              </div>
-            </div>
+              className="absolute top-0 bottom-0 bg-slate-400/20 dark:bg-slate-800/40 backdrop-blur-xs border-l-2 border-dashed border-rose-500/70 z-10 pointer-events-none overflow-hidden"
+              title={`Post-Song End (${formatTimecode(effectiveSongEnd)} - ${formatTimecode(totalTimelineDuration)})`}
+            />
           )}
 
           {/* Empty timeline state placeholder */}

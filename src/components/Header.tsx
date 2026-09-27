@@ -57,7 +57,7 @@ export function Header({
   const [showDemoMenu, setShowDemoMenu] = useState(false);
 
   return (
-    <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40">
+    <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 relative lg:sticky lg:top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
         {/* Brand & Title */}
         <div className="flex items-center gap-3">
@@ -132,10 +132,7 @@ export function Header({
               >
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span className="hidden md:inline">Demo/Example</span>
-                {hasCustomDemo && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" title="Custom demo active" />
-                )}
-                <ChevronDown className="w-3 h-3 text-indigo-500" />
+               <ChevronDown className="w-3 h-3 text-indigo-500" />
               </button>
 
               {showDemoMenu && (

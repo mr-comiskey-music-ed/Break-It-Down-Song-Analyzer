@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { extractYouTubeId } from '../utils/sharePayload';
-import { Youtube, ClipboardPaste, ArrowUp } from 'lucide-react';
+import { Youtube, ArrowUp } from 'lucide-react';
 
 interface YouTubePlayerProps {
   youtubeUrl: string;
@@ -22,6 +22,7 @@ interface YouTubePlayerProps {
   isHighlighted?: boolean;
   isExampleSong?: boolean;
   standalone?: boolean;
+  resetKey?: number;
 }
 
 export function YouTubePlayer({
@@ -38,6 +39,7 @@ export function YouTubePlayer({
   isHighlighted = false,
   isExampleSong = false,
   standalone = true,
+  resetKey = 0,
 }: YouTubePlayerProps) {
   const [inputUrl, setInputUrl] = useState(youtubeUrl);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
@@ -46,11 +48,16 @@ export function YouTubePlayer({
   const [apiReady, setApiReady] = useState(false);
   const intervalRef = useRef<any>(null);
 
-  // Sync internal input when props change
+  // Sync internal input and reset overlay when props or resetKey change
   useEffect(() => {
     setInputUrl(youtubeUrl);
     setOverlayDismissed(false);
-  }, [youtubeUrl]);
+    if (!youtubeId && playerInstanceRef.current && typeof playerInstanceRef.current.stopVideo === 'function') {
+      try {
+        playerInstanceRef.current.stopVideo();
+      } catch {}
+    }
+  }, [youtubeUrl, isExampleSong, resetKey]);
 
   // Load YouTube Iframe API if not already present
   useEffect(() => {
@@ -73,6 +80,15 @@ export function YouTubePlayer({
   useEffect(() => {
     if (!apiReady || !youtubeId) return;
 
+    if (playerInstanceRef.current && typeof playerInstanceRef.current.cueVideoById === 'function') {
+      try {
+        playerInstanceRef.current.cueVideoById(youtubeId);
+        return;
+      } catch (err) {
+        console.warn('Could not cue video, recreating player:', err);
+      }
+    }
+
     // Clear previous interval
     if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -94,6 +110,7 @@ export function YouTubePlayer({
           rel: 0,
           enablejsapi: 1,
           origin: window.location.origin,
+          wmode: 'transparent',
         },
         events: {
           onReady: (event: any) => {
@@ -222,43 +239,10 @@ export function YouTubePlayer({
     onUrlChange(inputUrl.trim(), extractedId);
   };
 
-  const handlePasteAndLoad = async () => {
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          const trimmed = text.trim();
-          setInputUrl(trimmed);
-          const extractedId = extractYouTubeId(trimmed);
-          onUrlChange(trimmed, extractedId);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Clipboard reading error:', err);
-    }
-    // Fallback if clipboard is empty or permission denied: load whatever is in the input box
-    if (inputUrl.trim()) {
-      const extractedId = extractYouTubeId(inputUrl);
-      onUrlChange(inputUrl.trim(), extractedId);
-    }
-  };
-
   const content = (
     <>
       {/* URL Input Bar */}
       <form onSubmit={handleLoadUrl} className="flex flex-col sm:flex-row items-stretch gap-2">
-        <button
-          id="paste-load-video-btn"
-          type="button"
-          onClick={handlePasteAndLoad}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 shadow-sm hover:shadow-md cursor-pointer active:scale-98"
-          title="Paste link from clipboard and load video"
-        >
-          <ClipboardPaste className="w-4 h-4" />
-          <span>Paste Link &amp; Load Video</span>
-        </button>
-
         <div className="relative flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             <Youtube className="w-4 h-4 text-red-500" />
@@ -268,20 +252,18 @@ export function YouTubePlayer({
             type="text"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
-            onPaste={(e) => {
-              const pasted = e.clipboardData.getData('text');
-              if (pasted && pasted.trim()) {
-                const trimmed = pasted.trim();
-                setTimeout(() => {
-                  const extractedId = extractYouTubeId(trimmed);
-                  onUrlChange(trimmed, extractedId);
-                }, 50);
-              }
-            }}
             placeholder="Paste YouTube link or embed URL (e.g. https://www.youtube.com/watch?v=...)"
             className="w-full h-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-mono"
           />
         </div>
+
+        <button
+          id="load-video-btn"
+          type="submit"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 shadow-sm hover:shadow-md cursor-pointer active:scale-98"
+        >
+          <span>Load Video</span>
+        </button>
       </form>
 
       {/* Video Container & Playback Screen with optional blur overlay & Start Here button */}
@@ -295,10 +277,10 @@ export function YouTubePlayer({
               className={`w-full h-full transition-all duration-300 ${!isExampleSong && !overlayDismissed ? 'filter backdrop-blur-[2px] contrast-95' : ''}`} 
             />
             
-            {/* Blur & Attention Overlay with pointer pointing up-left to Paste Link & Load Video */}
+            {/* Blur & Attention Overlay with pointer pointing up-left */}
             {!isExampleSong && !overlayDismissed && (
               <div 
-                className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1.5px] p-4 transition-all duration-300 flex items-center justify-center cursor-pointer"
+                className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1.5px] p-4 transition-all duration-300 flex items-center justify-center cursor-pointer z-20"
                 onClick={(e) => {
                   e.stopPropagation();
                   setOverlayDismissed(true);
@@ -321,11 +303,11 @@ export function YouTubePlayer({
             <Youtube className="w-12 h-12 text-slate-600 mb-2 animate-pulse" />
             <p className="text-sm font-semibold text-slate-300">No YouTube Video Loaded</p>
             <p className="text-xs text-slate-500 max-w-sm mt-1">
-              Paste a YouTube link above to load the video.
+              Paste a YouTube link above and click Load Video.
             </p>
 
             {!isExampleSong && (
-              <div className="absolute top-4 left-4 flex flex-col items-start animate-bounce">
+              <div className="absolute top-4 left-4 flex flex-col items-start animate-bounce z-20 pointer-events-none">
                 <div className="bg-indigo-600 text-white px-3.5 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-2 border border-indigo-400/50">
                   <ArrowUp className="w-4 h-4 text-indigo-200" />
                   <span>Start Here</span>
