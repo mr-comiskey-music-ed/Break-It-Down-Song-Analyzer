@@ -135,17 +135,17 @@ export function TutorialModal({
 
   const getContainerPosition = () => {
     if (currentStep === 0) {
-      return 'inset-0 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-200';
+      return 'inset-0 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-200';
     }
     if (currentStep === 4) {
-      return 'fixed top-28 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl sm:max-w-3xl p-4 animate-in fade-in slide-in-from-top-4 duration-300';
+      return 'fixed top-16 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 z-50 w-auto max-w-2xl sm:max-w-3xl p-3 sm:p-4 animate-in fade-in slide-in-from-top-4 duration-300';
     }
-    return 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-full max-w-md animate-in slide-in-from-bottom-4 duration-300';
+    return 'bottom-3 right-3 left-3 sm:bottom-6 sm:right-6 sm:left-auto w-auto max-w-md animate-in slide-in-from-bottom-4 duration-300';
   };
 
   return (
     <div className={`fixed z-50 pointer-events-auto transition-all duration-300 ${getContainerPosition()}`}>
-      <div className={`relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 text-slate-800 dark:text-slate-100 flex flex-col justify-between max-h-[85vh] overflow-y-auto ring-1 ring-slate-900/5 ${
+      <div className={`relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-7 text-slate-800 dark:text-slate-100 flex flex-col justify-between max-h-[85vh] overflow-y-auto ring-1 ring-slate-900/5 ${
         currentStep === 0 ? 'w-full max-w-lg' : currentStep === 4 ? 'w-full max-w-2xl sm:max-w-3xl' : 'w-full'
       }`}>
         {/* Merged Skip Walkthrough & X button at top right */}

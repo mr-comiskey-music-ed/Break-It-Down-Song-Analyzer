@@ -267,9 +267,10 @@ export default function App() {
       }
     }
 
-    // If not a shared view, show the tutorial modal on first visit without replacing the alternate video
+    // If not a shared view, show the tutorial modal and load Demo 1 on first visit
     const visited = localStorage.getItem('song_form_guide_seen');
     if (!visited) {
+      handleLoadExampleSong(true, 1);
       setTutorialStep(0);
       setIsTutorialOpen(true);
       localStorage.setItem('song_form_guide_seen', 'true');
@@ -864,7 +865,7 @@ export default function App() {
       {/* Top Header with Undo/Redo (Desktop) and Start/Stop (Mobile/Tablet) */}
       <Header
         onOpenTutorial={() => {
-          handleLoadExampleSong(true);
+          handleLoadExampleSong(true, 1);
           setTutorialStep(0);
           setIsTutorialOpen(true);
         }}
