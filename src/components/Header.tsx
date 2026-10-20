@@ -15,11 +15,13 @@ import {
   Square,
   Pause,
   Download,
+  ListChecks,
 } from 'lucide-react';
 
 interface HeaderProps {
   onOpenTutorial: () => void;
   onOpenShare: () => void;
+  onOpenBatchGrade?: () => void;
   onReset: () => void;
   onLoadDemo: () => void;
   onLoadSecondDemo?: () => void;
@@ -39,6 +41,7 @@ interface HeaderProps {
 export function Header({
   onOpenTutorial,
   onOpenShare,
+  onOpenBatchGrade,
   onReset,
   onLoadDemo,
   onLoadSecondDemo,
@@ -207,6 +210,20 @@ export function Header({
               <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
               <span className="hidden sm:inline">New Song Analysis</span>
               <span className="sm:hidden">New Song</span>
+            </button>
+          )}
+
+          {/* Teacher: batch grade a class */}
+          {onOpenBatchGrade && (
+            <button
+              id="header-batch-grade-btn"
+              type="button"
+              onClick={onOpenBatchGrade}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              title="Teachers: paste a whole class's codes to grade them at once"
+            >
+              <ListChecks className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden lg:inline">Batch Grade</span>
             </button>
           )}
 

@@ -9,7 +9,8 @@ import {
   hasCustomSavedDemo,
   resetDemoToDefault,
 } from './utils/demoStorage';
-import { decodeShareState, extractYouTubeId } from './utils/sharePayload';
+import { parseSubmissionCode, extractYouTubeId, ShareState } from './utils/sharePayload';
+import { parseBatch, BatchParseResult } from './utils/batchGrading';
 import { useAppHistory } from './utils/useAppHistory';
 import { lookupSongInfo } from './utils/songLookup';
 import { Header } from './components/Header';
@@ -23,6 +24,8 @@ import { AddSectionChoiceModal } from './components/AddSectionChoiceModal';
 
 import { TutorialModal } from './components/TutorialModal';
 import { ShareEvaluationModal } from './components/ShareEvaluationModal';
+import { BatchGradeModal } from './components/BatchGradeModal';
+import { BatchReviewBar } from './components/BatchReviewBar';
 import { SongComparisonView } from './components/SongComparisonView';
 import { CheckCircle2, Youtube } from 'lucide-react';
 
@@ -268,11 +271,12 @@ export default function App() {
     if (hash && hash.includes('assignment=')) {
       const param = hash.split('assignment=')[1];
       if (param) {
-        const decoded = decodeShareState(param);
-        if (decoded && decoded.songMetadata && decoded.sections) {
+        const decoded = parseSubmissionCode(param);
+        if (decoded) {
           setSongMetadata(decoded.songMetadata);
           setSections(decoded.sections);
           setStudentName(decoded.studentName || '');
+          setTapTempoUsed(decoded.tapTempoUsed ?? true);
           setIsSharedView(true);
           if (decoded.songMetadata.videoDuration) {
             setDuration(decoded.songMetadata.videoDuration);
@@ -853,6 +857,75 @@ export default function App() {
     handleNewSongAnalysis();
   };
 
+  // ---------- Batch grading (kept in memory only; nothing is stored) ----------
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
+  const [batchText, setBatchText] = useState('');
+  const [batchResult, setBatchResult] = useState<BatchParseResult | null>(null);
+  const [review, setReview] = useState<{ order: number[]; pos: number } | null>(null);
+  const [savedWorkspace, setSavedWorkspace] = useState<{
+    songMetadata: SongMetadata;
+    sections: SongSection[];
+    studentName: string;
+    tapTempoUsed: boolean;
+    duration: number;
+    isSharedView: boolean;
+  } | null>(null);
+
+  // Show a student's work in the main workspace (used for reviewing and for restoring)
+  const loadWorkspace = (w: {
+    songMetadata: SongMetadata;
+    sections: SongSection[];
+    studentName: string;
+    tapTempoUsed: boolean;
+    duration: number;
+    isSharedView: boolean;
+  }) => {
+    setSongMetadata(w.songMetadata);
+    setSections(w.sections);
+    setStudentName(w.studentName);
+    setTapTempoUsed(w.tapTempoUsed);
+    setDuration(w.duration);
+    setIsSharedView(w.isSharedView);
+    setSelectedSectionId(null);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    history.resetHistory({ songMetadata: w.songMetadata, sections: w.sections, studentName: w.studentName });
+  };
+
+  const loadSubmission = (sub: ShareState) =>
+    loadWorkspace({
+      songMetadata: sub.songMetadata,
+      sections: sub.sections,
+      studentName: sub.studentName || '',
+      tapTempoUsed: sub.tapTempoUsed ?? true,
+      duration: sub.songMetadata.videoDuration || 0,
+      isSharedView: true,
+    });
+
+  const showReviewAt = (order: number[], pos: number) => {
+    const entry = batchResult?.entries[order[pos]];
+    if (!entry) return;
+    loadSubmission(entry.submission);
+    setReview({ order, pos });
+  };
+
+  const handleStartReview = (order: number[], start: number) => {
+    if (!review) {
+      // remember the teacher's own work so it can be restored afterwards
+      setSavedWorkspace({ songMetadata, sections, studentName, tapTempoUsed, duration, isSharedView });
+    }
+    setIsBatchOpen(false);
+    showReviewAt(order, start);
+  };
+
+  const handleExitReview = () => {
+    if (savedWorkspace) loadWorkspace(savedWorkspace);
+    setSavedWorkspace(null);
+    setReview(null);
+  };
+
+  const reviewEntry = review && batchResult ? batchResult.entries[review.order[review.pos]] : null;
+
   const handleTogglePlay = () => {
     playerRefHandle.current?.togglePlay();
   };
@@ -877,6 +950,7 @@ export default function App() {
           setIsTutorialOpen(true);
         }}
         onOpenShare={() => setIsShareModalOpen(true)}
+        onOpenBatchGrade={() => setIsBatchOpen(true)}
         onReset={handleResetProject}
         onLoadDemo={() => handleLoadExampleSong(true, 1)}
         onLoadSecondDemo={() => handleLoadExampleSong(true, 2)}
@@ -1093,18 +1167,34 @@ export default function App() {
         onStudentNameChange={setStudentName}
         tapTempoUsed={tapTempoUsed}
         onImportComparison={setComparedSong}
-        onLoadIntoMainWorkspace={(imported) => {
-          setSongMetadata(imported.songMetadata);
-          setSections(imported.sections);
-          if (imported.studentName) {
-            setStudentName(imported.studentName);
-          }
-          if (imported.songMetadata.videoDuration) {
-            setDuration(imported.songMetadata.videoDuration);
-          }
-          showToast(`Loaded full workspace analysis for ${imported.studentName || 'Student'}`);
-        }}
+        onOpenBatchGrade={() => setIsBatchOpen(true)}
       />
+
+      {/* Teacher: batch grading */}
+      <BatchGradeModal
+        isOpen={isBatchOpen}
+        onClose={() => setIsBatchOpen(false)}
+        text={batchText}
+        onTextChange={setBatchText}
+        result={batchResult}
+        onGrade={() => setBatchResult(parseBatch(batchText))}
+        onClear={() => {
+          setBatchResult(null);
+          setBatchText('');
+        }}
+        onReview={handleStartReview}
+      />
+      {reviewEntry && review && !isBatchOpen && (
+        <BatchReviewBar
+          entry={reviewEntry}
+          position={review.pos}
+          total={review.order.length}
+          onPrev={() => showReviewAt(review.order, review.pos - 1)}
+          onNext={() => showReviewAt(review.order, review.pos + 1)}
+          onBackToList={() => setIsBatchOpen(true)}
+          onExit={handleExitReview}
+        />
+      )}
     </div>
   );
 }
