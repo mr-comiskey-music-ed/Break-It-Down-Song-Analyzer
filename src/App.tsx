@@ -950,7 +950,6 @@ export default function App() {
           setIsTutorialOpen(true);
         }}
         onOpenShare={() => setIsShareModalOpen(true)}
-        onOpenBatchGrade={() => setIsBatchOpen(true)}
         onReset={handleResetProject}
         onLoadDemo={() => handleLoadExampleSong(true, 1)}
         onLoadSecondDemo={() => handleLoadExampleSong(true, 2)}
