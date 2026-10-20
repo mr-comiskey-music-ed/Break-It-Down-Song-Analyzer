@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SongMetadata, SongSection, AssignmentEvaluation } from '../types';
-import { encodeShareState, parseSubmissionCode, ShareState } from '../utils/sharePayload';
+import { ShareState, parseSubmissionCode } from '../utils/sharePayload';
+import { encodeSubmission, encodeForLink } from '../utils/submissionCodec';
 import { evaluateAssignment } from '../utils/evaluation';
 import confetti from 'canvas-confetti';
 import {
@@ -11,6 +12,7 @@ import {
   Check,
   Sparkles,
   Layers,
+  ListChecks,
   ExternalLink,
   RotateCcw,
   X,
@@ -27,7 +29,7 @@ interface ShareEvaluationModalProps {
   onStudentNameChange: (name: string) => void;
   tapTempoUsed: boolean;
   onImportComparison?: (imported: { songMetadata: SongMetadata; sections: SongSection[]; studentName?: string }) => void;
-  onLoadIntoMainWorkspace?: (imported: { songMetadata: SongMetadata; sections: SongSection[]; studentName?: string }) => void;
+  onOpenBatchGrade?: () => void;
 }
 
 export function ShareEvaluationModal({
@@ -39,7 +41,7 @@ export function ShareEvaluationModal({
   onStudentNameChange,
   tapTempoUsed,
   onImportComparison,
-  onLoadIntoMainWorkspace,
+  onOpenBatchGrade,
 }: ShareEvaluationModalProps) {
   const [evaluation, setEvaluation] = useState<AssignmentEvaluation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,9 +50,6 @@ export function ShareEvaluationModal({
   const [overrideShare, setOverrideShare] = useState(false);
   const [importLinkInput, setImportLinkInput] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
-  const [teacherCodeInput, setTeacherCodeInput] = useState('');
-  const [teacherCodeError, setTeacherCodeError] = useState<string | null>(null);
-  const [verifiedReportData, setVerifiedReportData] = useState<ShareState | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -81,10 +80,11 @@ export function ShareEvaluationModal({
     sections,
     studentName: studentName.trim() || 'Student',
     completedAt: new Date().toISOString(),
+    tapTempoUsed,
   };
 
-  const encodedData = encodeShareState(shareState);
-  const shareUrl = `${window.location.origin}${window.location.pathname}#assignment=${encodedData}`;
+  const encodedData = encodeSubmission(shareState);
+  const shareUrl = `${window.location.origin}${window.location.pathname}#assignment=${encodeForLink(shareState)}`;
 
   const handleCopyLink = async () => {
     try {
@@ -114,32 +114,6 @@ export function ShareEvaluationModal({
       onClose();
     } else {
       setImportError('Invalid or corrupted submission code/link. Please check the code and try again.');
-    }
-  };
-
-  const handleVerifyTeacherCode = async () => {
-    setTeacherCodeError(null);
-    let codeToVerify = teacherCodeInput.trim();
-    if (!codeToVerify) {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          codeToVerify = text.trim();
-          setTeacherCodeInput(codeToVerify);
-        }
-      } catch {
-        // clipboard access may be restricted
-      }
-    }
-    if (!codeToVerify) {
-      setTeacherCodeError('Please paste a student submission code or click Paste & Verify Grade to read from clipboard.');
-      return;
-    }
-    const verified = parseSubmissionCode(codeToVerify);
-    if (verified && verified.songMetadata && verified.sections) {
-      setVerifiedReportData(verified);
-    } else {
-      setTeacherCodeError("⚠️ This code couldn't be read. Make sure the whole code was copied (no missing characters at the start or end) and try again.");
     }
   };
 
@@ -255,141 +229,6 @@ export function ShareEvaluationModal({
                   </button>
                 </div>
               </div>
-            ) : verifiedReportData ? (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="w-6 h-6" />
-                    <h3 className="text-lg font-bold font-['Outfit']">Student Submission Report</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setVerifiedReportData(null)}
-                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
-                  >
-                    Back to Check
-                  </button>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Student Name:</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                        {verifiedReportData.studentName || 'Unnamed Student'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Submitted:</span>
-                      <span className="font-mono text-slate-700 dark:text-slate-300">
-                        {verifiedReportData.completedAt ? new Date(verifiedReportData.completedAt).toLocaleString() : 'Recent'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Song Analyzed:</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">
-                        {verifiedReportData.songMetadata.title || 'Untitled'} by {verifiedReportData.songMetadata.artist || 'Unknown'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Tempo & Sections:</span>
-                      <span className="font-mono text-slate-700 dark:text-slate-300">
-                        {verifiedReportData.songMetadata.bpm || '---'} BPM • {verifiedReportData.sections.length} Sections Mapped
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-emerald-900 dark:text-emerald-200 text-xs">
-                  <p className="font-bold mb-0.5">Submission code read successfully ✓</p>
-                  <p className="opacity-90">
-                    Section mappings, bar counts, slider settings, and instrument descriptions were loaded from the student's code.
-                  </p>
-                </div>
-
-                {/* Detailed Section Breakdown List */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Detailed Section Breakdown ({verifiedReportData.sections.length} Mapped Sections):
-                  </h4>
-                  <div className="max-h-52 overflow-y-auto pr-1 space-y-2">
-                    {verifiedReportData.sections.map((sec, idx) => (
-                      <div key={sec.id || idx} className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                            {idx + 1}. {sec.label}
-                          </span>
-                          <span className="font-mono text-slate-500 dark:text-slate-400">
-                            {Math.floor(sec.startTime / 60)}:{Math.floor(sec.startTime % 60).toString().padStart(2, '0')} - {Math.floor(sec.endTime / 60)}:{Math.floor(sec.endTime % 60).toString().padStart(2, '0')} ({sec.calculatedBars || '?'} bars)
-                          </span>
-                        </div>
-                        {sec.instrumentationNotes && (
-                          <p className="text-slate-600 dark:text-slate-300 italic">
-                            <span className="font-semibold not-italic text-slate-700 dark:text-slate-200">Instruments:</span> {sec.instrumentationNotes}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                          <span>Energy: <strong className="text-indigo-600 dark:text-indigo-400">{sec.energyLevel !== undefined ? sec.energyLevel : 5}/10</strong></span>
-                          <span>Rhythm: <strong className="text-indigo-600 dark:text-indigo-400">{sec.rhythmicDrive !== undefined ? sec.rhythmicDrive : 5}/10</strong></span>
-                          <span>Vocals: <strong className="text-indigo-600 dark:text-indigo-400">{sec.vocalComplexity !== undefined ? sec.vocalComplexity : 5}/10</strong></span>
-                          <span>Texture: <strong className="text-indigo-600 dark:text-indigo-400">{sec.textureDensity !== undefined ? sec.textureDensity : 5}/10</strong></span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onLoadIntoMainWorkspace) {
-                        onLoadIntoMainWorkspace({
-                          songMetadata: verifiedReportData.songMetadata,
-                          sections: verifiedReportData.sections,
-                          studentName: verifiedReportData.studentName,
-                        });
-                      }
-                      setVerifiedReportData(null);
-                      onClose();
-                    }}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    <Youtube className="w-4 h-4 text-indigo-200" />
-                    <span>Open Full Analysis in Main Workspace (Re-import Student Work)</span>
-                  </button>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onImportComparison) {
-                          onImportComparison({
-                            songMetadata: verifiedReportData.songMetadata,
-                            sections: verifiedReportData.sections,
-                            studentName: verifiedReportData.studentName,
-                          });
-                        }
-                        setVerifiedReportData(null);
-                        onClose();
-                      }}
-                      className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <GitCompare className="w-4 h-4" />
-                      <span>Compare with My Song</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVerifiedReportData(null)}
-                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      Back to Check
-                    </button>
-                  </div>
-                </div>
-              </div>
             ) : (
               /* Share link & Google Classroom export section */
               <div className="space-y-4 pt-1 border-t border-slate-100 dark:border-slate-800">
@@ -472,60 +311,6 @@ export function ShareEvaluationModal({
                   )}
                 </div>
 
-                {/* Teacher Code Check section at the bottom of the Grade Report pop up */}
-                <div className="pt-4 border-t-2 border-dashed border-slate-200 dark:border-slate-800 space-y-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                      Teacher Code Check
-                    </h4>
-                  </div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Paste Student Submission Code or Link
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={teacherCodeInput}
-                      onChange={(e) => {
-                        setTeacherCodeInput(e.target.value);
-                        setTeacherCodeError(null);
-                      }}
-                      onPaste={(e) => {
-                        const pasted = e.clipboardData.getData('text');
-                        if (pasted) {
-                          setTimeout(() => {
-                            const verified = parseSubmissionCode(pasted);
-                            if (verified) {
-                              setVerifiedReportData(verified);
-                            } else {
-                              setTeacherCodeError("⚠️ This code couldn't be read. Make sure the whole code was copied (no missing characters at the start or end) and try again.");
-                            }
-                          }, 50);
-                        }
-                      }}
-                      placeholder="Paste student base64 submission code here..."
-                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleVerifyTeacherCode}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs shrink-0 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Paste & Verify Grade</span>
-                    </button>
-                  </div>
-                  {teacherCodeError && (
-                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-200 dark:border-rose-900/50">
-                      {teacherCodeError}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-slate-400">
-                    Reads a student submission code or link and shows their work. Nothing is uploaded or stored.
-                  </p>
-                </div>
-
                 {/* Close Button */}
                 <div className="pt-2 flex justify-end">
                   <button
@@ -536,6 +321,23 @@ export function ShareEvaluationModal({
                     Done
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Teacher: grade a whole class from pasted codes (always available) */}
+            {onOpenBatchGrade && (
+              <div className="mt-4 pt-4 border-t-2 border-dashed border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenBatchGrade();
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <ListChecks className="w-4 h-4" />
+                  <span>Teacher: Batch Grade a Class</span>
+                </button>
               </div>
             )}
           </div>

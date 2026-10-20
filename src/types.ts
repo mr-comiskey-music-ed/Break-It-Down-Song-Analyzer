@@ -69,6 +69,8 @@ export interface AssignmentEvaluation {
   feedbackItems: string[];
   encouragement: string;
   summaryReport: string;
+  /** Which requirements were not met (see CHECKS in utils/evaluation.ts). */
+  issueKeys?: string[];
 }
 
 export interface PresetSong {

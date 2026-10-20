@@ -206,6 +206,7 @@ export function YouTubePlayer({
   // Global keyboard listener for spacebar (play/pause) and left/right arrow keys (scrubbing 5s)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return; // leave shortcuts (like Alt+arrows) to other handlers
       const target = e.target as HTMLElement | null;
       if (target) {
         const tagName = target.tagName.toLowerCase();
