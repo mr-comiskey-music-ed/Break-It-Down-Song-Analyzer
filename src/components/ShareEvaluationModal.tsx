@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SongMetadata, SongSection, AssignmentEvaluation } from '../types';
-import { encodeShareState, decodeShareState, cC, ShareState } from '../utils/sharePayload';
+import { encodeShareState, parseSubmissionCode, ShareState } from '../utils/sharePayload';
+import { evaluateAssignment } from '../utils/evaluation';
 import confetti from 'canvas-confetti';
 import {
   CheckCircle2,
@@ -59,107 +60,17 @@ export function ShareEvaluationModal({
       return;
     }
 
-    const runEvaluation = async () => {
-      setIsLoading(true);
-      try {
-        const res = await fetch('/api/evaluate-assignment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            songData: songMetadata,
-            sections,
-            tapTempoUsed,
-          }),
-        });
-
-        if (res.ok) {
-          const data: AssignmentEvaluation = await res.json();
-          setEvaluation(data);
-
-          if (data.isThorough) {
-            // Trigger celebratory confetti
-            confetti({
-              particleCount: 80,
-              spread: 70,
-              origin: { y: 0.6 },
-            });
-          }
-        } else {
-          throw new Error('Evaluation request failed');
-        }
-      } catch (err) {
-        console.warn('Using client-side fallback evaluation:', err);
-        // Rigorous evaluation matching server standards
-        const issues: string[] = [];
-        if (!songMetadata.title || songMetadata.title.trim().length === 0) {
-          issues.push('Song Title is missing in the header box. Please enter the exact title of the song you are analyzing.');
-        }
-        if (!songMetadata.artist || songMetadata.artist.trim().length === 0) {
-          issues.push('Artist name is missing in the header box. Please credit the recording artist or band.');
-        }
-        if (!songMetadata.bpm || Number(songMetadata.bpm) <= 0) {
-          issues.push('Tempo (BPM) is not entered in the header box.');
-        }
-        if (!tapTempoUsed) {
-          issues.push('Tap Tempo tool was not used. Please click the Tap Tempo button to physically tap along with the beat and calculate your song\'s accurate tempo.');
-        }
-        if (sections.length < 4) {
-          issues.push(`You have mapped ${sections.length} section(s) on your timeline. To perform a thorough structural analysis, please map at least 4 distinct song sections (e.g., Intro, Verse, Chorus, Bridge, Outro).`);
-        }
-
-        let missingInstruments = 0;
-        let shortInstruments = 0;
-        sections.forEach((s: any) => {
-          if (!s.instrumentationNotes || s.instrumentationNotes.trim().length === 0) {
-            missingInstruments++;
-          } else if (s.instrumentationNotes.trim().length < 5) {
-            shortInstruments++;
-          }
-        });
-        if (missingInstruments > 0) {
-          issues.push(`You have ${missingInstruments} section(s) with empty instrument information boxes. Every instrument box must describe what instruments are playing.`);
-        } else if (shortInstruments > 0) {
-          issues.push(`Some instrument notes are too brief (${shortInstruments} section(s)). Expand your descriptions to detail specific instruments (e.g., lead vocals, rhythm guitar, synths, drums).`);
-        }
-
-        let totalScales = sections.length * 4;
-        let modifiedScalesCount = 0;
-        sections.forEach((s: any) => {
-          if (s.modifiedScales?.energyLevel) modifiedScalesCount++;
-          if (s.modifiedScales?.rhythmicDrive) modifiedScalesCount++;
-          if (s.modifiedScales?.vocalComplexity) modifiedScalesCount++;
-          if (s.modifiedScales?.textureDensity) modifiedScalesCount++;
-        });
-        const requiredModified = Math.ceil(totalScales * 0.75);
-        if (modifiedScalesCount < requiredModified) {
-          issues.push(`You have only modified ${modifiedScalesCount} out of ${totalScales} linear analysis scales (sliders). Please carefully adjust the Energy, Rhythm, Vocals, and Texture sliders on the majority of your section cards to reflect how the music changes.`);
-        }
-
-        const isThorough = issues.length === 0 && sections.length >= 4;
-        setEvaluation({
-          status: isThorough ? 'excellent' : 'needs_work',
-          isThorough,
-          score: isThorough ? 96 : 68,
-          feedbackItems: issues.length > 0 ? issues : ['All song header fields and tap tempo completed', `Timeline comprehensively maps ${sections.length} sections`, 'All instrument boxes and linear scales thoroughly analyzed'],
-          encouragement: isThorough
-            ? "Exceptional work! You demonstrated a comprehensive, rigorous understanding of the song's structural arrangement, dynamics, and instrumentation."
-            : 'Your analysis needs more depth. Review the specific recommendations above to improve your song form analysis quality.',
-          summaryReport: `Rigorously analyzed "${songMetadata.title || 'Song'}" by ${songMetadata.artist || 'Artist'} across ${sections.length} sections (${songMetadata.bpm || 120} BPM).`,
-        });
-
-        if (isThorough) {
-          confetti({
-            particleCount: 80,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    runEvaluation();
+    const result = evaluateAssignment(songMetadata, sections, tapTempoUsed);
+    setEvaluation(result);
+    setIsLoading(false);
+    if (result.isThorough) {
+      // Trigger celebratory confetti
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+    }
   }, [isOpen, songMetadata, sections, tapTempoUsed]);
 
   if (!isOpen) return null;
@@ -191,7 +102,7 @@ export function ShareEvaluationModal({
       setImportError('Please paste a valid share link or assignment code.');
       return;
     }
-    const decoded = cC(importLinkInput.trim());
+    const decoded = parseSubmissionCode(importLinkInput.trim());
     if (decoded && decoded.songMetadata && decoded.sections) {
       if (onImportComparison) {
         onImportComparison({
@@ -224,11 +135,11 @@ export function ShareEvaluationModal({
       setTeacherCodeError('Please paste a student submission code or click Paste & Verify Grade to read from clipboard.');
       return;
     }
-    const verified = cC(codeToVerify);
+    const verified = parseSubmissionCode(codeToVerify);
     if (verified && verified.songMetadata && verified.sections) {
       setVerifiedReportData(verified);
     } else {
-      setTeacherCodeError('⚠️ Invalid or tampered submission code. Please check the code and try again.');
+      setTeacherCodeError("⚠️ This code couldn't be read. Make sure the whole code was copied (no missing characters at the start or end) and try again.");
     }
   };
 
@@ -349,7 +260,7 @@ export function ShareEvaluationModal({
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="w-6 h-6" />
-                    <h3 className="text-lg font-bold font-['Outfit']">Verified Student Grade Report</h3>
+                    <h3 className="text-lg font-bold font-['Outfit']">Student Submission Report</h3>
                   </div>
                   <button
                     type="button"
@@ -390,9 +301,9 @@ export function ShareEvaluationModal({
                 </div>
 
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-emerald-900 dark:text-emerald-200 text-xs">
-                  <p className="font-bold mb-0.5">Tamper-Proof Signature Verified ✓</p>
+                  <p className="font-bold mb-0.5">Submission code read successfully ✓</p>
                   <p className="opacity-90">
-                    All timeline bar calculations, section mappings, and instrument descriptions are intact and authentic.
+                    Section mappings, bar counts, slider settings, and instrument descriptions were loaded from the student's code.
                   </p>
                 </div>
 
@@ -410,7 +321,7 @@ export function ShareEvaluationModal({
                             {idx + 1}. {sec.label}
                           </span>
                           <span className="font-mono text-slate-500 dark:text-slate-400">
-                            {Math.floor(sec.startTime / 60)}:{Math.floor(sec.startTime % 60).toString().padStart(2, '0')} - {Math.floor(sec.endTime / 60)}:{Math.floor(sec.endTime % 60).toString().padStart(2, '0')} ({sec.barCount || '?'} bars)
+                            {Math.floor(sec.startTime / 60)}:{Math.floor(sec.startTime % 60).toString().padStart(2, '0')} - {Math.floor(sec.endTime / 60)}:{Math.floor(sec.endTime % 60).toString().padStart(2, '0')} ({sec.calculatedBars || '?'} bars)
                           </span>
                         </div>
                         {sec.instrumentationNotes && (
@@ -584,11 +495,11 @@ export function ShareEvaluationModal({
                         const pasted = e.clipboardData.getData('text');
                         if (pasted) {
                           setTimeout(() => {
-                            const verified = cC(pasted);
+                            const verified = parseSubmissionCode(pasted);
                             if (verified) {
                               setVerifiedReportData(verified);
                             } else {
-                              setTeacherCodeError('⚠️ Invalid or tampered submission code. Please check the code and try again.');
+                              setTeacherCodeError("⚠️ This code couldn't be read. Make sure the whole code was copied (no missing characters at the start or end) and try again.");
                             }
                           }, 50);
                         }
@@ -611,7 +522,7 @@ export function ShareEvaluationModal({
                     </p>
                   )}
                   <p className="text-[11px] text-slate-400">
-                    Instantly decodes and verifies student assignment submissions without relying on URL query strings.
+                    Reads a student submission code or link and shows their work. Nothing is uploaded or stored.
                   </p>
                 </div>
 

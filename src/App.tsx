@@ -11,6 +11,7 @@ import {
 } from './utils/demoStorage';
 import { decodeShareState, extractYouTubeId } from './utils/sharePayload';
 import { useAppHistory } from './utils/useAppHistory';
+import { lookupSongInfo } from './utils/songLookup';
 import { Header } from './components/Header';
 import { SongMetadataBoxes } from './components/SongMetadataBoxes';
 import { YouTubePlayer } from './components/YouTubePlayer';
@@ -75,22 +76,34 @@ export default function App() {
   });
 
   // Keep history snapshot current
+  const { setCurrentSnapshot, recordChange } = history;
   useEffect(() => {
-    history.setCurrentSnapshot({
+    setCurrentSnapshot({
       songMetadata,
       sections,
       studentName,
     });
-  }, [songMetadata, sections, studentName, history]);
+  }, [songMetadata, sections, studentName, setCurrentSnapshot]);
 
   // Helper to record history before user mutation
   const recordSnapshot = useCallback(() => {
-    history.recordChange({
+    recordChange({
       songMetadata,
       sections,
       studentName,
     });
-  }, [songMetadata, sections, studentName, history]);
+  }, [songMetadata, sections, studentName, recordChange]);
+
+  // Slider drags, boundary drags and typing fire many updates in a row. Record only one
+  // undo step per burst of edits to the same thing (a pause of 800ms starts a new step).
+  const lastEditRef = useRef<{ key: string; time: number } | null>(null);
+  const recordSnapshotCoalesced = (key: string) => {
+    const now = Date.now();
+    const last = lastEditRef.current;
+    lastEditRef.current = { key, time: now };
+    if (last && last.key === key && now - last.time < 800) return;
+    recordSnapshot();
+  };
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -102,6 +115,7 @@ export default function App() {
   // Undo / Redo Handlers
   const handleUndo = useCallback(() => {
     const prev = history.undo();
+    lastEditRef.current = null;
     if (prev) {
       setSongMetadata(prev.songMetadata);
       setSections(prev.sections);
@@ -115,6 +129,7 @@ export default function App() {
 
   const handleRedo = useCallback(() => {
     const next = history.redo();
+    lastEditRef.current = null;
     if (next) {
       setSongMetadata(next.songMetadata);
       setSections(next.sections);
@@ -318,28 +333,17 @@ export default function App() {
     }));
   };
 
-  // Auto populate metadata using iTunes catalog, YouTube oEmbed, and Gemini /api/song-metadata
+  // Auto populate metadata from the YouTube video title and Apple's public song catalog
   const handleAutoPopulate = async () => {
     setIsLoadingAutoFill(true);
     try {
-      const combinedQuery = [songMetadata.artist, songMetadata.title].filter(Boolean).join(' - ') ||
-        songMetadata.title ||
-        songMetadata.artist ||
-        '';
-
-      const res = await fetch('/api/song-metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: songMetadata.title || '',
-          artist: songMetadata.artist || '',
-          query: combinedQuery,
-          youtubeUrl: songMetadata.youtubeUrl || '',
-        }),
+      const data = await lookupSongInfo({
+        title: songMetadata.title,
+        artist: songMetadata.artist,
+        youtubeUrl: songMetadata.youtubeUrl,
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         setSongMetadata((prev) => ({
           ...prev,
           title: data.title || prev.title,
@@ -350,9 +354,12 @@ export default function App() {
           timeSignature: data.timeSignature || prev.timeSignature || '4/4',
           referenceBpm: data.referenceBpm || prev.referenceBpm,
         }));
+      } else {
+        showToast("Couldn't find that song. Type the details in by hand.");
       }
     } catch (err) {
       console.error('Error auto-populating song info:', err);
+      showToast("Couldn't find that song. Type the details in by hand.");
     } finally {
       setIsLoadingAutoFill(false);
     }
@@ -653,7 +660,7 @@ export default function App() {
 
   // First section start boundary adjustment
   const handleUpdateFirstSectionStart = (newTime: number) => {
-    recordSnapshot();
+    recordSnapshotCoalesced('first-start');
     setSections((prev) => {
       if (prev.length === 0) return prev;
       const updated = [...prev];
@@ -678,7 +685,7 @@ export default function App() {
 
   // Last section end boundary adjustment
   const handleUpdateLastSectionEnd = (newTime: number) => {
-    recordSnapshot();
+    recordSnapshotCoalesced('last-end');
     setSections((prev) => {
       if (prev.length === 0) return prev;
       const updated = [...prev];
@@ -704,7 +711,7 @@ export default function App() {
 
   // Boundary adjustment
   const handleUpdateBoundary = (index: number, newTime: number) => {
-    recordSnapshot();
+    recordSnapshotCoalesced(`boundary-${index}`);
     setSections((prev) => {
       if (index < 0 || index >= prev.length - 1) return prev;
       const updated = [...prev];
@@ -748,7 +755,7 @@ export default function App() {
 
   // Update specific section
   const handleUpdateSection = (id: string, updatedFields: Partial<SongSection>) => {
-    recordSnapshot();
+    recordSnapshotCoalesced(`section-${id}-${Object.keys(updatedFields).sort().join(',')}`);
     setSections((prev) => {
       const updated = prev.map((s) => {
         if (s.id !== id) return s;
@@ -956,6 +963,7 @@ export default function App() {
                     onAutoPopulate={handleAutoPopulate}
                     isLoadingAutoFill={isLoadingAutoFill}
                     onTapTempoRecorded={() => setTapTempoUsed(true)}
+                    onTapTempoReset={() => setTapTempoUsed(false)}
                     isHighlighted={false}
                     standalone={false}
                   />
