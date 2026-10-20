@@ -87,7 +87,7 @@ export function calculateSectionBars(
     if (Math.abs(rawBars - 4) < 1.3) {
       finalBars = 4;
       explanation = 'Standard 4-bar introductory/concluding phrasing';
-    } else if (Math.abs(rawBars - 8) < 1.6) {
+    } else if (rawBars >= 7 && rawBars <= 9.5) {
       finalBars = 8;
       explanation = 'Standard 8-bar phrasing';
     } else if (diffFrom4 < 1.0 && roundedTo4 > 0) {
@@ -102,7 +102,7 @@ export function calculateSectionBars(
     }
   } else {
     // Verse, Pre-Chorus, Chorus/Hook, Bridge
-    if (Math.abs(rawBars - 8) < 1.7) {
+    if (rawBars >= 7 && rawBars <= 9.5) {
       finalBars = 8;
       explanation = 'Standard pop length (8 bars)';
     } else if (Math.abs(rawBars - 16) < 2.3) {

@@ -8,6 +8,7 @@ interface SongMetadataBoxesProps {
   onAutoPopulate: () => Promise<void>;
   isLoadingAutoFill: boolean;
   onTapTempoRecorded?: () => void;
+  onTapTempoReset?: () => void;
   isHighlighted?: boolean;
   standalone?: boolean;
 }
@@ -18,6 +19,7 @@ export function SongMetadataBoxes({
   onAutoPopulate,
   isLoadingAutoFill,
   onTapTempoRecorded,
+  onTapTempoReset,
   isHighlighted = false,
   standalone = true,
 }: SongMetadataBoxesProps) {
@@ -25,14 +27,32 @@ export function SongMetadataBoxes({
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [isTapping, setIsTapping] = useState(false);
 
+  // Keep the latest taps in a ref so BPM is computed outside of a state updater
+  const tapTimesRef = useRef<number[]>([]);
   const resetTimerRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Audio click oscillator for tap feedback (synthesized lightly)
+  // A tempo only counts as "tapped in" after this many taps
+  const MIN_TAPS_FOR_CREDIT = 4;
+
+  // Clean up the shared audio context and timers when this component goes away
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+    };
+  }, []);
+
+  // Audio click oscillator for tap feedback. One AudioContext is reused for every
+  // tap (browsers, including Chromebooks, limit how many can exist at once).
   const playTapAudio = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -55,46 +75,45 @@ export function SongMetadataBoxes({
     setIsTapping(true);
     setTimeout(() => setIsTapping(false), 120);
 
-    setTapTimes((prev) => {
-      // If last tap was more than 2.5 seconds ago, reset
-      if (prev.length > 0 && now - prev[prev.length - 1] > 2500) {
-        return [now];
+    const prev = tapTimesRef.current;
+    // If last tap was more than 2.5 seconds ago, start over
+    const sliced =
+      prev.length > 0 && now - prev[prev.length - 1] > 2500
+        ? [now]
+        : [...prev, now].slice(-12); // keep up to 12 taps
+
+    tapTimesRef.current = sliced;
+    setTapTimes(sliced);
+
+    if (sliced.length >= 2) {
+      // Calculate average interval between consecutive taps
+      const intervals: number[] = [];
+      for (let i = 1; i < sliced.length; i++) {
+        intervals.push(sliced[i] - sliced[i - 1]);
       }
+      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const calculatedBpm = Math.round(60000 / avgInterval);
 
-      const updated = [...prev, now];
-      // Keep up to 12 taps
-      const sliced = updated.slice(-12);
-
-      if (sliced.length >= 2) {
-        // Calculate average interval between consecutive taps
-        const intervals: number[] = [];
-        for (let i = 1; i < sliced.length; i++) {
-          intervals.push(sliced[i] - sliced[i - 1]);
-        }
-
-        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-        const calculatedBpm = Math.round(60000 / avgInterval);
-
-        if (calculatedBpm >= 30 && calculatedBpm <= 300) {
-          onChange({ bpm: calculatedBpm });
-          if (onTapTempoRecorded) onTapTempoRecorded();
-        }
+      if (calculatedBpm >= 30 && calculatedBpm <= 300) {
+        onChange({ bpm: calculatedBpm });
+        if (sliced.length >= MIN_TAPS_FOR_CREDIT && onTapTempoRecorded) onTapTempoRecorded();
       }
-
-      return sliced;
-    });
+    }
 
     // Reset tap buffer after 3s of inactivity
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     resetTimerRef.current = setTimeout(() => {
+      tapTimesRef.current = [];
       setTapTimes([]);
     }, 3000);
   };
 
   const handleResetTap = (e: React.MouseEvent) => {
     e.stopPropagation();
+    tapTimesRef.current = [];
     setTapTimes([]);
     onChange({ bpm: '' });
+    if (onTapTempoReset) onTapTempoReset();
   };
 
   const tapCount = tapTimes.length;

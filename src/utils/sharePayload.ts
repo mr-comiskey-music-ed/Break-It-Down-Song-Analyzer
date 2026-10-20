@@ -7,10 +7,25 @@ export interface ShareState {
   studentName?: string;
 }
 
+// UTF-8 safe base64 helpers (no deprecated escape/unescape).
+// The output format is unchanged, so codes made before this update still load.
+function utf8ToBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function base64ToUtf8(b64: string): string {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
 export function encodeShareState(data: ShareState): string {
   try {
-    const json = JSON.stringify(data);
-    return encodeURIComponent(btoa(unescape(encodeURIComponent(json))));
+    return encodeURIComponent(utf8ToBase64(JSON.stringify(data)));
   } catch (err) {
     console.error('Failed to encode share state:', err);
     return '';
@@ -19,37 +34,43 @@ export function encodeShareState(data: ShareState): string {
 
 export function decodeShareState(encoded: string): ShareState | null {
   try {
-    const raw = decodeURIComponent(encoded);
-    const json = decodeURIComponent(escape(atob(raw)));
-    return JSON.parse(json) as ShareState;
+    // Remove any spaces or line breaks added when a code is pasted or copied
+    // through Google Classroom, email, or a chat window.
+    const cleaned = encoded.replace(/\s+/g, '');
+    const raw = decodeURIComponent(cleaned);
+    return JSON.parse(base64ToUtf8(raw)) as ShareState;
   } catch (err) {
     console.error('Failed to decode share state:', err);
     return null;
   }
 }
 
-export function cC(str: string): ShareState | null {
-  if (!str) return null;
-  let trimmed = str.trim();
+function isValidShareState(state: ShareState | null): state is ShareState {
+  if (!state || typeof state !== 'object') return false;
+  if (!state.songMetadata || typeof state.songMetadata !== 'object') return false;
+  if (!Array.isArray(state.sections)) return false;
+  return state.sections.every(
+    (s) =>
+      s &&
+      typeof s === 'object' &&
+      Number.isFinite(s.startTime) &&
+      Number.isFinite(s.endTime)
+  );
+}
+
+/**
+ * Reads a student submission code, or a full share link containing one.
+ * Returns null if the text can't be read as a submission.
+ */
+export function parseSubmissionCode(input: string): ShareState | null {
+  if (!input) return null;
+  let trimmed = input.trim();
   if (trimmed.includes('assignment=')) {
     const parts = trimmed.split('assignment=');
     trimmed = parts[parts.length - 1];
   }
-  try {
-    const decoded = decodeShareState(trimmed);
-    if (decoded && decoded.songMetadata && Array.isArray(decoded.sections)) {
-      return decoded;
-    }
-    const raw = decodeURIComponent(trimmed);
-    const json = decodeURIComponent(escape(atob(raw)));
-    const parsed = JSON.parse(json) as ShareState;
-    if (parsed && parsed.songMetadata && Array.isArray(parsed.sections)) {
-      return parsed;
-    }
-  } catch (err) {
-    console.error('Failed to verify submission code via cC():', err);
-  }
-  return null;
+  const decoded = decodeShareState(trimmed);
+  return isValidShareState(decoded) ? decoded : null;
 }
 
 export function extractYouTubeId(urlOrId: string): string {

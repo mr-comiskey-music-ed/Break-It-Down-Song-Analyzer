@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { SongSection, SectionType } from '../types';
 import { SECTION_CONFIGS, formatTimecode, getSectionColorTheme } from '../utils/musicTheory';
-import { TimelineWaveformOverlay } from './TimelineWaveformOverlay';
 import { motion } from 'motion/react';
 import {
   SwellingCrescendo,
@@ -110,8 +109,6 @@ export function TimelineVisualizer({
   const [isHoveringSeekBar, setIsHoveringSeekBar] = useState(false);
   const [hoveredTimelineTime, setHoveredTimelineTime] = useState<number | null>(null);
   const [isHoveringRuler, setIsHoveringRuler] = useState(false);
-  const [showWaveform, setShowWaveform] = useState(true);
-  const [waveformOpacity, setWaveformOpacity] = useState(0.7);
 
   // Total timeline span (at least max of duration or latest section endTime or 200s)
   const maxSectionTime = sections.length > 0 ? sections[sections.length - 1].endTime : 0;
@@ -1062,20 +1059,6 @@ export function TimelineVisualizer({
               </div>
             );
           })}
-
-          {/* Dynamic Waveform & Transition Landmark Overlay (Drops, Builds, Rhythm Shifts) */}
-          <TimelineWaveformOverlay
-            sections={sections}
-            totalTimelineDuration={totalTimelineDuration}
-            currentTime={currentTime}
-            isPlaying={isPlaying}
-            bpm={bpm}
-            timeSignature={timeSignature}
-            effectiveSongStart={effectiveSongStart}
-            effectiveSongEnd={effectiveSongEnd}
-            onSeek={onSeek}
-            opacity={waveformOpacity}
-          />
 
           {/* Start Boundary Line of First Section (Established Timeline Start) */}
           {sections.length > 0 && onUpdateFirstSectionStart && (() => {

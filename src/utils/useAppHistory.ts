@@ -41,8 +41,10 @@ export function useAppHistory(initialState: AppSnapshot) {
 
     const previous = past[past.length - 1];
     const newPast = past.slice(0, past.length - 1);
+    // Read the ref now: React runs the updater function later, after the ref has changed
+    const current = currentStateRef.current;
 
-    setFuture((prevFuture) => [currentStateRef.current, ...prevFuture]);
+    setFuture((prevFuture) => [current, ...prevFuture]);
     setPast(newPast);
     currentStateRef.current = previous;
 
@@ -57,8 +59,9 @@ export function useAppHistory(initialState: AppSnapshot) {
 
     const next = future[0];
     const newFuture = future.slice(1);
+    const current = currentStateRef.current;
 
-    setPast((prevPast) => [...prevPast, currentStateRef.current]);
+    setPast((prevPast) => [...prevPast, current]);
     setFuture(newFuture);
     currentStateRef.current = next;
 

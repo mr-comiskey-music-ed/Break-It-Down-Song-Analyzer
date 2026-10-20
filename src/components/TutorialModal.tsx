@@ -96,7 +96,7 @@ export function TutorialModal({
       content: (
         <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
           <p className="text-xs sm:text-sm">
-            Rate each section's excitement, rhythmic drive, and density using the 4 interactive sliders.
+            Label each section's characteristics (energy, rhythm, vocals, and texture) using the 4 parameter sliders.
           </p>
           <p className="text-xs sm:text-sm">
             List all instrumentation you hear in each section with the help of instrument suggestions generated based on the genre of the song.
