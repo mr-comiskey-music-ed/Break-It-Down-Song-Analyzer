@@ -34,6 +34,8 @@ interface HeaderProps {
   isPlaying?: boolean;
   onTogglePlay?: () => void;
   isShareButtonHighlighted?: boolean;
+  /** Small status element (autosave indicator) shown at the start of the action buttons. */
+  statusSlot?: React.ReactNode;
 }
 
 export function Header({
@@ -53,6 +55,7 @@ export function Header({
   isPlaying = false,
   onTogglePlay,
   isShareButtonHighlighted = false,
+  statusSlot,
 }: HeaderProps) {
   const [showDemoMenu, setShowDemoMenu] = useState(false);
 
@@ -120,6 +123,7 @@ export function Header({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 relative">
+          {statusSlot}
           {/* Demo Dropdown / Quick Load */}
           {!isSharedView && (
             <div className="relative">

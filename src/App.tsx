@@ -12,6 +12,9 @@ import {
 import { parseSubmissionCode, extractYouTubeId, ShareState } from './utils/sharePayload';
 import { parseBatch, BatchParseResult } from './utils/batchGrading';
 import { useAppHistory } from './utils/useAppHistory';
+import { encodeSubmission, decodeSubmission } from './utils/submissionCodec';
+import { loadSaved, writeSaved, clearSaved } from './utils/autosave';
+import { SaveIndicator, RestorePrompt, type SaveStatus } from './components/AutosaveUI';
 import { lookupSongInfo } from './utils/songLookup';
 import { Header } from './components/Header';
 import { SongMetadataBoxes } from './components/SongMetadataBoxes';
@@ -902,6 +905,129 @@ export default function App() {
       isSharedView: true,
     });
 
+  // ---------- Autosave (kept in this browser only; see utils/autosave.ts) ----------
+  // Not used for shared assignment links or while the teacher steps through batch review. If an
+  // earlier analysis was saved, ask before doing anything; autosave stays off until the student
+  // answers, so a blank project can never overwrite saved work.
+  const [restoreOffer, setRestoreOffer] = useState<{ state: ShareState; code: string; savedAt: number } | null>(() => {
+    if (window.location.hash.includes('assignment=')) return null;
+    const saved = loadSaved();
+    const state = saved ? decodeSubmission(saved.code) : null;
+    return saved && state ? { state, code: saved.code, savedAt: saved.savedAt } : null;
+  });
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const lastCodeRef = useRef<string>('');
+  const autosaveOn = restoreOffer === null;
+  const autosaveSnapshotRef = useRef({ songMetadata, sections, tapTempoUsed, activeDemoSlot });
+  autosaveSnapshotRef.current = { songMetadata, sections, tapTempoUsed, activeDemoSlot };
+  const autosavePausedRef = useRef(false);
+  autosavePausedRef.current = review !== null || isSharedView;
+
+  /** Has the student built something, beyond just looking at a demo song? */
+  const hasWorkNow = () => {
+    const cur = autosaveSnapshotRef.current;
+    if (cur.sections.length === 0) return false;
+    if (cur.activeDemoSlot !== null) {
+      const demo = getDemoExampleBySlot(cur.activeDemoSlot);
+      if (
+        JSON.stringify(cur.sections) === JSON.stringify(demo.sections) &&
+        JSON.stringify(cur.songMetadata) === JSON.stringify(demo.songMetadata)
+      ) {
+        return false; // untouched demo
+      }
+    }
+    return true;
+  };
+
+  const saveNow = () => {
+    if (autosavePausedRef.current) return; // shared links and teacher review are not the student's work
+    if (!hasWorkNow()) {
+      // The student cleared everything on purpose: don't offer the old analysis back next time.
+      if (lastCodeRef.current) {
+        clearSaved();
+        lastCodeRef.current = '';
+        setSaveStatus('idle');
+      }
+      return;
+    }
+    const cur = autosaveSnapshotRef.current;
+    // The name is never saved: it is typed only when making the code to turn in.
+    const code = encodeSubmission({
+      songMetadata: cur.songMetadata,
+      sections: cur.sections,
+      tapTempoUsed: cur.tapTempoUsed,
+    });
+    if (code === lastCodeRef.current) return;
+    if (writeSaved(code)) {
+      lastCodeRef.current = code;
+      setSaveStatus('saved');
+      setSavedAt(Date.now());
+    } else {
+      setSaveStatus('failed');
+    }
+  };
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+  const hasWorkRef = useRef(hasWorkNow);
+  hasWorkRef.current = hasWorkNow;
+
+  // Save shortly after the student stops changing things
+  useEffect(() => {
+    if (!autosaveOn) return;
+    const timer = window.setTimeout(() => saveNowRef.current(), 1500);
+    return () => window.clearTimeout(timer);
+  }, [autosaveOn, songMetadata, sections, tapTempoUsed]);
+
+  // Save right away when the tab is hidden or closed, so a quick close doesn't lose the last change
+  useEffect(() => {
+    if (!autosaveOn) return;
+    const flush = () => saveNowRef.current();
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [autosaveOn]);
+
+  // Only warn on leaving when the browser can't save (otherwise leaving is safe)
+  useEffect(() => {
+    if (saveStatus !== 'failed') return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (!hasWorkRef.current()) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [saveStatus]);
+
+  const handleRestoreSaved = () => {
+    if (!restoreOffer) return;
+    const s = restoreOffer.state;
+    setActiveDemoSlot(null);
+    loadWorkspace({
+      songMetadata: s.songMetadata,
+      sections: s.sections,
+      studentName: '',
+      tapTempoUsed: s.tapTempoUsed ?? true,
+      duration: s.songMetadata.videoDuration || 0,
+      isSharedView: false,
+    });
+    lastCodeRef.current = restoreOffer.code;
+    setSavedAt(restoreOffer.savedAt);
+    setSaveStatus('saved');
+    setRestoreOffer(null);
+  };
+
+  const handleStartFresh = () => {
+    clearSaved();
+    lastCodeRef.current = '';
+    setRestoreOffer(null);
+  };
+
   const showReviewAt = (order: number[], pos: number) => {
     const entry = batchResult?.entries[order[pos]];
     if (!entry) return;
@@ -964,7 +1090,12 @@ export default function App() {
         isPlaying={isPlaying}
         onTogglePlay={handleTogglePlay}
         isShareButtonHighlighted={isTutorialOpen && tutorialStep === 4}
+        statusSlot={<SaveIndicator status={saveStatus} savedAt={savedAt} />}
       />
+
+      {restoreOffer && (
+        <RestorePrompt savedAt={restoreOffer.savedAt} onRestore={handleRestoreSaved} onStartFresh={handleStartFresh} />
+      )}
 
       {/* Main Workspace Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
